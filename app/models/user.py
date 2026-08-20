@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column
+from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlmodel import Field, SQLModel
@@ -8,6 +8,13 @@ from sqlmodel import Field, SQLModel
 
 class User(SQLModel, table=True):
     __tablename__ = "users_user"
+    # Django's unique=True on email creates a named UNIQUE CONSTRAINT
+    # (whose backing index serves lookups too), not a separate unique
+    # index -- declaring it this way instead of Column(unique=True,
+    # index=True) avoids Alembic seeing two different-shaped objects
+    # (a constraint it thinks should be removed, plus an index it thinks
+    # should be added) for what's actually the same thing.
+    __table_args__ = (UniqueConstraint("email", name="users_user_email_key"),)
 
     id: int | None = Field(default=None, primary_key=True)
     password: str = Field(max_length=128)
@@ -16,7 +23,7 @@ class User(SQLModel, table=True):
         default=None, sa_column=Column(SADateTime(timezone=True))
     )
     is_superuser: bool = False
-    email: str = Field(sa_column=Column(CITEXT, unique=True, index=True, nullable=False))
+    email: str = Field(sa_column=Column(CITEXT, nullable=False))
     is_email_verified: bool = False
     is_active: bool = True
     # timestamp with time zone in the live schema, NOT NULL, no server

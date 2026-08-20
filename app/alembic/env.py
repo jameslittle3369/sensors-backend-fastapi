@@ -19,8 +19,15 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Read DATABASE_URL from the same env-var-driven settings the app uses,
-# rather than a hardcoded value in alembic.ini.
-config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_database_url)
+# rather than a hardcoded value in alembic.ini. Alembic's Config is
+# backed by a ConfigParser, which treats "%" as the start of an
+# interpolation sequence (e.g. "%(foo)s") even for values set
+# programmatically via set_main_option -- a URL-encoded password
+# (containing e.g. "%24" for "$") would otherwise raise
+# "invalid interpolation syntax". Escape "%" as "%%" so ConfigParser
+# stores/reads it literally.
+database_url = get_settings().sqlalchemy_database_url
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 target_metadata = SQLModel.metadata
 
@@ -28,6 +35,21 @@ target_metadata = SQLModel.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    # The `api` database is shared with Django features this migration
+    # deliberately doesn't manage (admin, social auth, referrals,
+    # avatars, django's own sessions/contenttypes/auth tables, and a
+    # handful of unexplained scratch tables like del_max/del_min).
+    # Without this filter, `alembic check`/autogenerate treats every
+    # such table as "should be removed" simply because it isn't in our
+    # SQLModel.metadata. Only ever consider tables we've explicitly
+    # modeled -- everything else on the reflected (live) side is
+    # invisible to comparison, and we never emit DDL for it.
+    if type_ == "table":
+        return name in target_metadata.tables
+    return True
 
 
 def run_migrations_offline() -> None:
@@ -48,6 +70,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -69,7 +92,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

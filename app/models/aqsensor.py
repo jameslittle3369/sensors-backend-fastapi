@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import Column
+from sqlalchemy import Column, Index
 from sqlalchemy import DateTime as SADateTime
 from sqlmodel import Field, SQLModel
 
@@ -15,13 +15,25 @@ class AQSensor(SQLModel, table=True):
 
 class AQLog(SQLModel, table=True):
     __tablename__ = "aqsensors_aqlog"
+    # Matches Django's exact index name rather than Field(index=True),
+    # which would generate a differently-named index and show up as a
+    # permanent no-op diff in `alembic check`. Integer column, so no
+    # varchar_pattern_ops variant needed (that's text-only).
+    __table_args__ = (Index("aqsensors_aqlog_aq_sensor_id_6184f7dd", "aq_sensor_id"),)
 
     id: int | None = Field(default=None, primary_key=True)
-    aq_sensor_id: int = Field(foreign_key="aqsensors_aqsensor.id")
-    # timestamp with time zone in the live schema.
+    # NOT a real DB-level FK constraint -- verified via \d+
+    # aqsensors_aqlog, only a plain index exists
+    # (aqsensors_aqlog_aq_sensor_id_6184f7dd), no "Foreign-key
+    # constraints:" section. Same deliberate-drop-for-performance
+    # pattern as the tstats log tables.
+    aq_sensor_id: int
+    # timestamp with time zone in the live schema, NOT NULL.
+    # nullable=False must be explicit here, see
+    # TstatLog.created_at's comment for why.
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(SADateTime(timezone=True)),
+        sa_column=Column(SADateTime(timezone=True), nullable=False),
     )
     # Plain string, NOT a Python Enum: the declared Django choices are
     # Temp, HUM, PM25, PM10, PM25R, PM10R, VOC, NO2, but the actual
