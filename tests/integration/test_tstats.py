@@ -1,6 +1,8 @@
 import pytest
 
-from app.models.thermohygrometer import ThermoHygrometer
+from sqlmodel import select
+
+from app.models.thermohygrometer import ThermoHygrometer, ThermoHygrostatLog
 from app.models.tstat import Thermometer, TstatLog
 
 
@@ -56,3 +58,55 @@ def test_thermohygrometers_retrieve_always_crashes(client, session):
 
     with pytest.raises(AttributeError):
         client.get("/v1/thermohygrometers/chan-1")
+
+
+def test_log_creates_device_and_log_when_new(client, session):
+    response = client.post(
+        "/v1/thermohygrometers/new-chan/log",
+        json={"pretty_name": "Attic", "temp_f": "70.5", "humidity": "45.0"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"id_channel": "new-chan", "created": True}
+
+    device = session.get(ThermoHygrometer, "new-chan")
+    assert device is not None
+    assert device.pretty_name == "Attic"
+
+    logs = session.exec(
+        select(ThermoHygrostatLog).where(ThermoHygrostatLog.thermohygrometer_id == "new-chan")
+    ).all()
+    assert len(logs) == 1
+
+
+def test_log_dedups_unchanged_reading(client, session):
+    session.add(ThermoHygrometer(id_channel="chan-2", pretty_name="Garage"))
+    session.commit()
+
+    payload = {"temp_f": "60.0", "humidity": "50.0"}
+    first = client.post("/v1/thermohygrometers/chan-2/log", json=payload)
+    second = client.post("/v1/thermohygrometers/chan-2/log", json=payload)
+
+    assert first.json()["created"] is True
+    assert second.json()["created"] is False
+
+    logs = session.exec(
+        select(ThermoHygrostatLog).where(ThermoHygrostatLog.thermohygrometer_id == "chan-2")
+    ).all()
+    assert len(logs) == 1
+
+
+def test_log_inserts_when_value_changes(client, session):
+    session.add(ThermoHygrometer(id_channel="chan-3", pretty_name="Shed"))
+    session.commit()
+
+    client.post(
+        "/v1/thermohygrometers/chan-3/log", json={"temp_f": "60.0", "humidity": "50.0"}
+    )
+    client.post(
+        "/v1/thermohygrometers/chan-3/log", json={"temp_f": "61.0", "humidity": "50.0"}
+    )
+
+    logs = session.exec(
+        select(ThermoHygrostatLog).where(ThermoHygrostatLog.thermohygrometer_id == "chan-3")
+    ).all()
+    assert len(logs) == 2

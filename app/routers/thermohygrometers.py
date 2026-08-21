@@ -5,7 +5,11 @@ from sqlmodel import Session, col, func, select
 
 from app.deps.db import get_session
 from app.models.thermohygrometer import ThermoHygrometer, ThermoHygrostatLog
-from app.schemas.thermohygrometer import ThermoHygrometerListItem
+from app.schemas.thermohygrometer import (
+    ThermoHygrometerListItem,
+    ThermoHygrometerLogRequest,
+    ThermoHygrometerLogResponse,
+)
 from app.schemas.tstat import TstatLogRepr
 
 router = APIRouter(tags=["thermohygrometers"])
@@ -78,3 +82,43 @@ def retrieve_thermohygrometer(id_channel: str, session: Session = Depends(get_se
         "high_last24": high_last24,
         "low_last24": low_last24,
     }
+
+
+@router.post("/thermohygrometers/{id_channel}/log", response_model=ThermoHygrometerLogResponse)
+def log_thermohygrometer(
+    id_channel: str,
+    payload: ThermoHygrometerLogRequest,
+    session: Session = Depends(get_session),
+) -> ThermoHygrometerLogResponse:
+    # New write path for a table that was previously read-only in this
+    # app -- the old Django app and rtl_2_postgres.py both wrote directly
+    # via raw SQL, never through an API. get-or-create the parent device
+    # (id_channel is the natural PK; pretty_name is NOT NULL in the live
+    # schema, so fall back to id_channel itself if not provided).
+    device = session.get(ThermoHygrometer, id_channel)
+    if device is None:
+        device = ThermoHygrometer(
+            id_channel=id_channel, pretty_name=payload.pretty_name or id_channel
+        )
+        session.add(device)
+        session.commit()
+
+    # Dedup: skip the insert if both temp_f and humidity match the most
+    # recent log entry for this device.
+    last_log = session.exec(
+        select(ThermoHygrostatLog)
+        .where(ThermoHygrostatLog.thermohygrometer_id == id_channel)
+        .order_by(col(ThermoHygrostatLog.id).desc())
+    ).first()
+    if last_log is not None and last_log.temp_f == payload.temp_f and last_log.humidity == payload.humidity:
+        return ThermoHygrometerLogResponse(id_channel=id_channel, created=False)
+
+    session.add(
+        ThermoHygrostatLog(
+            thermohygrometer_id=id_channel,
+            temp_f=payload.temp_f,
+            humidity=payload.humidity,
+        )
+    )
+    session.commit()
+    return ThermoHygrometerLogResponse(id_channel=id_channel, created=True)

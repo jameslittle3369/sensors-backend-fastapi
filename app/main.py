@@ -4,8 +4,11 @@ from app.core.errors import ApiFieldError, api_field_error_handler
 from app.routers import (
     aqsensors,
     cameras,
+    energy,
+    ikea,
     login,
     register,
+    ring,
     stats,
     thermohygrometers,
     thermometers,
@@ -28,3 +31,6 @@ app.include_router(thermometers.router, prefix="/v1")
 app.include_router(thermohygrometers.router, prefix="/v1")
 app.include_router(tstats.router, prefix="/v1")
 app.include_router(stats.router, prefix="/v1")
+app.include_router(energy.router, prefix="/v1")
+app.include_router(ikea.router, prefix="/v1")
+app.include_router(ring.router, prefix="/v1")

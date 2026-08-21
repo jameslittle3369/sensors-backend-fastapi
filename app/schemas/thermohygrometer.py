@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import BaseModel
 
 
@@ -8,3 +10,14 @@ class ThermoHygrometerListItem(BaseModel):
     # None` unconditionally in Django (dead code below it is
     # unreachable) -- ported verbatim, always null.
     last: None = None
+
+
+class ThermoHygrometerLogRequest(BaseModel):
+    pretty_name: str | None = None
+    temp_f: Decimal
+    humidity: Decimal
+
+
+class ThermoHygrometerLogResponse(BaseModel):
+    id_channel: str
+    created: bool  # False when skipped due to dedup (unchanged reading)
