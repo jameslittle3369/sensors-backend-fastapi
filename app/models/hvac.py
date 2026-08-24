@@ -51,7 +51,9 @@ class HvacZoneLog(SQLModel, table=True):
     switch_off_allowed: bool | None = Field(default=None)
     switch_heat_allowed: bool | None = Field(default=None)
     switch_emergency_heat_allowed: bool | None = Field(default=None)
-    system_switch_position: int | None = Field(default=None)
+    # Stored as pyhtcc's SystemMode enum name (e.g. "Cool"), not the raw
+    # int -- readable directly in Grafana/psql with no CASE/join needed.
+    system_switch_position: str | None = Field(default=None, max_length=20)
     deadband: int | None = Field(default=None)
     indoor_humidity: int | None = Field(default=None)
     commercial: bool | None = Field(default=None)
@@ -77,7 +79,9 @@ class HvacZoneLog(SQLModel, table=True):
     equipment_output_status: int | None = Field(default=None)
 
     # fanData
-    fan_mode: int | None = Field(default=None)
+    # Stored as pyhtcc's FanMode enum name (e.g. "Auto"), not the raw int
+    # -- same rationale as system_switch_position above.
+    fan_mode: str | None = Field(default=None, max_length=20)
     fan_mode_auto_allowed: bool | None = Field(default=None)
     fan_mode_on_allowed: bool | None = Field(default=None)
     fan_mode_circulate_allowed: bool | None = Field(default=None)

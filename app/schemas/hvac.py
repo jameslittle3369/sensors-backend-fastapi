@@ -28,7 +28,7 @@ class HvacZoneLogRequest(BaseModel):
     switch_off_allowed: bool | None = None
     switch_heat_allowed: bool | None = None
     switch_emergency_heat_allowed: bool | None = None
-    system_switch_position: int | None = None
+    system_switch_position: str | None = None
     deadband: int | None = None
     indoor_humidity: int | None = None
     commercial: bool | None = None
@@ -54,7 +54,7 @@ class HvacZoneLogRequest(BaseModel):
     equipment_output_status: int | None = None
 
     # fanData
-    fan_mode: int | None = None
+    fan_mode: str | None = None
     fan_mode_auto_allowed: bool | None = None
     fan_mode_on_allowed: bool | None = None
     fan_mode_circulate_allowed: bool | None = None

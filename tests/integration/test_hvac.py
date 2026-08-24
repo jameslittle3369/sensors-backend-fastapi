@@ -11,7 +11,8 @@ def test_log_creates_zone_and_log_when_new(client, session):
             "disp_temperature": 72,
             "heat_setpoint": 68,
             "cool_setpoint": 75,
-            "fan_mode": 0,
+            "system_switch_position": "Cool",
+            "fan_mode": "Auto",
             "fan_is_running": True,
         },
     )
@@ -27,6 +28,8 @@ def test_log_creates_zone_and_log_when_new(client, session):
     ).all()
     assert len(logs) == 1
     assert logs[0].disp_temperature == 72
+    assert logs[0].system_switch_position == "Cool"
+    assert logs[0].fan_mode == "Auto"
     assert logs[0].fan_is_running is True
     # Fields not present in the payload stay null rather than defaulting
     # to 0/False -- distinguishes "unknown" from "actually off/zero".
@@ -42,7 +45,7 @@ def test_log_dedups_unchanged_reading(client, session):
         "disp_temperature": 70,
         "heat_setpoint": 68,
         "cool_setpoint": 74,
-        "fan_mode": 1,
+        "fan_mode": "On",
         "fan_is_running": False,
     }
     first = client.post("/v1/hvac-zones/zone-2/log", json=payload)
@@ -66,7 +69,7 @@ def test_log_inserts_when_a_single_field_changes(client, session):
         "disp_temperature": 65,
         "heat_setpoint": 68,
         "cool_setpoint": 74,
-        "fan_mode": 0,
+        "fan_mode": "Auto",
         "fan_is_running": True,
     }
     client.post("/v1/hvac-zones/zone-3/log", json=base_payload)
