@@ -5,6 +5,7 @@ from app.routers import (
     aqsensors,
     cameras,
     energy,
+    hvac,
     ikea,
     login,
     register,
@@ -34,3 +35,4 @@ app.include_router(stats.router, prefix="/v1")
 app.include_router(energy.router, prefix="/v1")
 app.include_router(ikea.router, prefix="/v1")
 app.include_router(ring.router, prefix="/v1")
+app.include_router(hvac.router, prefix="/v1")

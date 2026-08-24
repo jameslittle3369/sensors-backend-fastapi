@@ -1,6 +1,7 @@
 from app.models.aqsensor import AQLog, AQSensor
 from app.models.camera import Camera
 from app.models.energy import EnergyCircuit, EnergyCircuitLog
+from app.models.hvac import HvacZone, HvacZoneLog
 from app.models.ikea import IkeaDevice, IkeaDeviceLog
 from app.models.ring import RingDevice, RingDeviceLog
 from app.models.thermohygrometer import ThermoHygrometer, ThermoHygrostatLog
@@ -14,6 +15,8 @@ __all__ = [
     "Camera",
     "EnergyCircuit",
     "EnergyCircuitLog",
+    "HvacZone",
+    "HvacZoneLog",
     "IkeaDevice",
     "IkeaDeviceLog",
     "RingDevice",
