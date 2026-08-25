@@ -2,12 +2,15 @@ from fastapi import FastAPI
 
 from app.core.errors import ApiFieldError, api_field_error_handler
 from app.routers import (
+    anemometer,
     aqsensors,
     cameras,
     energy,
     hvac,
     ikea,
     login,
+    photo_uvmeter,
+    raingauge,
     register,
     ring,
     stats,
@@ -36,3 +39,6 @@ app.include_router(energy.router, prefix="/v1")
 app.include_router(ikea.router, prefix="/v1")
 app.include_router(ring.router, prefix="/v1")
 app.include_router(hvac.router, prefix="/v1")
+app.include_router(anemometer.router, prefix="/v1")
+app.include_router(photo_uvmeter.router, prefix="/v1")
+app.include_router(raingauge.router, prefix="/v1")

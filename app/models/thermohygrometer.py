@@ -37,6 +37,9 @@ class ThermoHygrometer(SQLModel, table=True):
     low_h_24_hour: Decimal = Field(default=0, max_digits=8, decimal_places=4)
     model: str = Field(max_length=50, default="")
     model_id: int | None = Field(default=None)
+    # Acurite Tower/Atlas both report this on every packet (1=normal,
+    # 0=low) -- nullable since existing rows/older clients won't have it.
+    battery_ok: bool | None = Field(default=None)
 
 
 class ThermoHygrostatLog(SQLModel, table=True):

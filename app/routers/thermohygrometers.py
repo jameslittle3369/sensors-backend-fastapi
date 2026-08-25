@@ -113,6 +113,15 @@ def log_thermohygrometer(
     if last_log is not None and last_log.temp_f == payload.temp_f and last_log.humidity == payload.humidity:
         return ThermoHygrometerLogResponse(id_channel=id_channel, created=False)
 
+    # Keep the parent's "current" snapshot in sync with whatever reading
+    # is actually about to be logged -- previously these columns existed
+    # on the model but nothing ever wrote them, so they sat frozen at
+    # their default of 0 forever.
+    device.current_f = payload.temp_f
+    device.current_h = payload.humidity
+    device.battery_ok = payload.battery_ok
+    session.add(device)
+
     session.add(
         ThermoHygrostatLog(
             thermohygrometer_id=id_channel,

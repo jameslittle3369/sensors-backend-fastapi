@@ -16,6 +16,7 @@ class ThermoHygrometerLogRequest(BaseModel):
     pretty_name: str | None = None
     temp_f: Decimal
     humidity: Decimal
+    battery_ok: bool | None = None
 
 
 class ThermoHygrometerLogResponse(BaseModel):

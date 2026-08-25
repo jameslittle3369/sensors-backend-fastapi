@@ -63,7 +63,12 @@ def test_thermohygrometers_retrieve_always_crashes(client, session):
 def test_log_creates_device_and_log_when_new(client, session):
     response = client.post(
         "/v1/thermohygrometers/new-chan/log",
-        json={"pretty_name": "Attic", "temp_f": "70.5", "humidity": "45.0"},
+        json={
+            "pretty_name": "Attic",
+            "temp_f": "70.5",
+            "humidity": "45.0",
+            "battery_ok": True,
+        },
     )
     assert response.status_code == 200
     assert response.json() == {"id_channel": "new-chan", "created": True}
@@ -71,6 +76,11 @@ def test_log_creates_device_and_log_when_new(client, session):
     device = session.get(ThermoHygrometer, "new-chan")
     assert device is not None
     assert device.pretty_name == "Attic"
+    # current_f/current_h previously existed on the model but were never
+    # written by this endpoint -- confirm the fix actually updates them.
+    assert device.current_f == 70.5
+    assert device.current_h == 45.0
+    assert device.battery_ok is True
 
     logs = session.exec(
         select(ThermoHygrostatLog).where(ThermoHygrostatLog.thermohygrometer_id == "new-chan")
