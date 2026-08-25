@@ -14,6 +14,9 @@ def test_log_creates_zone_and_log_when_new(client, session):
             "system_switch_position": "Cool",
             "fan_mode": "Auto",
             "fan_is_running": True,
+            "status_heat": "Permanent",
+            "status_cool": "Schedule",
+            "equipment_output_status": "Cool",
         },
     )
     assert response.status_code == 200
@@ -31,6 +34,9 @@ def test_log_creates_zone_and_log_when_new(client, session):
     assert logs[0].system_switch_position == "Cool"
     assert logs[0].fan_mode == "Auto"
     assert logs[0].fan_is_running is True
+    assert logs[0].status_heat == "Permanent"
+    assert logs[0].status_cool == "Schedule"
+    assert logs[0].equipment_output_status == "Cool"
     # Fields not present in the payload stay null rather than defaulting
     # to 0/False -- distinguishes "unknown" from "actually off/zero".
     assert logs[0].outdoor_temperature is None

@@ -35,8 +35,13 @@ class HvacZoneLog(SQLModel, table=True):
     heat_setpoint: int | None = Field(default=None)
     cool_setpoint: int | None = Field(default=None)
     display_units: str | None = Field(default=None, max_length=8)
-    status_heat: int | None = Field(default=None)
-    status_cool: int | None = Field(default=None)
+    # Stored as our own HoldStatus enum name (e.g. "Permanent"), not the
+    # raw int -- pyhtcc has no named enum for this (unlike SystemMode/
+    # FanMode); see sensors-apps/honeywell's HoldStatus for the mapping
+    # and its provenance (reverse-engineered from `somecomfort`,
+    # cross-validated against pyhtcc's own control-write methods).
+    status_heat: str | None = Field(default=None, max_length=20)
+    status_cool: str | None = Field(default=None, max_length=20)
     hold_until_capable: bool | None = Field(default=None)
     schedule_capable: bool | None = Field(default=None)
     dual_setpoint_status: bool | None = Field(default=None)
@@ -47,7 +52,9 @@ class HvacZoneLog(SQLModel, table=True):
     system_switch_position: str | None = Field(default=None, max_length=20)
     indoor_humidity: int | None = Field(default=None)
     outdoor_temperature: int | None = Field(default=None)
-    equipment_output_status: int | None = Field(default=None)
+    # Stored as our own EquipmentStatus enum name (e.g. "Cool"), not the
+    # raw int -- same rationale as status_heat/status_cool above.
+    equipment_output_status: str | None = Field(default=None, max_length=20)
 
     # fanData
     # Stored as pyhtcc's FanMode enum name (e.g. "Auto"), not the raw int

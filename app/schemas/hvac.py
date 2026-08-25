@@ -9,8 +9,8 @@ class HvacZoneLogRequest(BaseModel):
     heat_setpoint: int | None = None
     cool_setpoint: int | None = None
     display_units: str | None = None
-    status_heat: int | None = None
-    status_cool: int | None = None
+    status_heat: str | None = None
+    status_cool: str | None = None
     hold_until_capable: bool | None = None
     schedule_capable: bool | None = None
     dual_setpoint_status: bool | None = None
@@ -19,7 +19,7 @@ class HvacZoneLogRequest(BaseModel):
     system_switch_position: str | None = None
     indoor_humidity: int | None = None
     outdoor_temperature: int | None = None
-    equipment_output_status: int | None = None
+    equipment_output_status: str | None = None
 
     # fanData
     fan_mode: str | None = None
