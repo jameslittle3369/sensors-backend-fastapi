@@ -24,5 +24,5 @@ class AnemometerLog(SQLModel, table=True):
     direction_deg: Decimal = Field(max_digits=5, decimal_places=1)
     recorded_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(SADateTime(timezone=True), nullable=False),
+        sa_column=Column(SADateTime(timezone=True), nullable=False, index=True),
     )

@@ -28,5 +28,5 @@ class PhotoUvmeterLog(SQLModel, table=True):
     uv_index: int
     recorded_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(SADateTime(timezone=True), nullable=False),
+        sa_column=Column(SADateTime(timezone=True), nullable=False, index=True),
     )

@@ -37,5 +37,5 @@ class EnergyCircuitLog(SQLModel, table=True):
     watts: Decimal = Field(max_digits=10, decimal_places=2)
     recorded_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(SADateTime(timezone=True), nullable=False),
+        sa_column=Column(SADateTime(timezone=True), nullable=False, index=True),
     )

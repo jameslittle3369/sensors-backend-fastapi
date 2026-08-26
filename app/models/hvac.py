@@ -24,7 +24,7 @@ class HvacZoneLog(SQLModel, table=True):
     hvac_zone_id: str = Field(foreign_key="hvac_zones.external_id", max_length=50, index=True)
     recorded_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
-        sa_column=Column(SADateTime(timezone=True), nullable=False),
+        sa_column=Column(SADateTime(timezone=True), nullable=False, index=True),
     )
 
     # uiData -- pruned to 15 fields (from the original 47) after studying
