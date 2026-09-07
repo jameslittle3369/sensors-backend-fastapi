@@ -7,6 +7,7 @@ from app.models.ikea import IkeaDevice, IkeaDeviceLog
 from app.models.photo_uvmeter import PhotoUvmeter, PhotoUvmeterLog
 from app.models.raingauge import RainGauge, RainGaugeLog
 from app.models.ring import RingDevice, RingDeviceLog
+from app.models.spa import Spa, SpaLog
 from app.models.thermohygrometer import ThermoHygrometer, ThermoHygrostatLog
 from app.models.token import Token
 from app.models.tstat import Thermometer, TstatLog
@@ -30,6 +31,8 @@ __all__ = [
     "RainGaugeLog",
     "RingDevice",
     "RingDeviceLog",
+    "Spa",
+    "SpaLog",
     "ThermoHygrometer",
     "ThermoHygrostatLog",
     "Thermometer",

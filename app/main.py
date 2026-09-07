@@ -13,6 +13,7 @@ from app.routers import (
     raingauge,
     register,
     ring,
+    spa,
     stats,
     thermohygrometers,
     thermometers,
@@ -42,3 +43,4 @@ app.include_router(hvac.router, prefix="/v1")
 app.include_router(anemometer.router, prefix="/v1")
 app.include_router(photo_uvmeter.router, prefix="/v1")
 app.include_router(raingauge.router, prefix="/v1")
+app.include_router(spa.router, prefix="/v1")
