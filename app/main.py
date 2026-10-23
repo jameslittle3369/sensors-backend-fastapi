@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.core.errors import ApiFieldError, api_field_error_handler
 from app.routers import (
     alarm,
+    almanac,
     anemometer,
     aqsensors,
     cameras,
@@ -46,3 +47,4 @@ app.include_router(photo_uvmeter.router, prefix="/v1")
 app.include_router(raingauge.router, prefix="/v1")
 app.include_router(spa.router, prefix="/v1")
 app.include_router(alarm.router, prefix="/v1")
+app.include_router(almanac.router, prefix="/v1")
