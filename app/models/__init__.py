@@ -5,6 +5,7 @@ from app.models.alarm import (
     AlarmZone,
     AlarmZoneLog,
 )
+from app.models.almanac import AlmanacDay
 from app.models.anemometer import Anemometer, AnemometerLog
 from app.models.aqsensor import AQLog, AQSensor
 from app.models.camera import Camera
@@ -28,6 +29,7 @@ __all__ = [
     "AlarmTroubleLog",
     "AlarmZone",
     "AlarmZoneLog",
+    "AlmanacDay",
     "Anemometer",
     "AnemometerLog",
     "Camera",
