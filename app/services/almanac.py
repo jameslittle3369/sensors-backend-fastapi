@@ -203,9 +203,9 @@ _MOON_DARK_COLOR = "#1b1d22"
 _CARDINAL_SIZE = 0.09
 _RAY_LABEL_SIZE = 0.09
 _READOUT_SIZE = 0.09
-_MOON_TEXT_SIZE = 0.075  # moon readout + the az/el labels beside the sun and moon
+_MOON_TEXT_SIZE = 0.08  # moon readout + the az/el labels beside the sun and moon
 _SUN_DOT_SIZE = 0.06
-_MOON_DISC_SIZE = 0.08
+_MOON_DISC_SIZE = 0.06
 _MOON_ARC_RADIUS = 0.88  # inside the ring, so it doesn't sit on the sun's arc
 _BELOW_HORIZON_OPACITY = 0.75
 _OUTLINE_PX = 3
@@ -380,6 +380,67 @@ def _place_ray_label(
     return "".join(parts)
 
 
+def _place_body_label(
+    *,
+    x: float,
+    y: float,
+    radius: float,
+    text: str,
+    color: str,
+    size: float,
+    width: int,
+    height: int,
+    obstacles: list[_Box],
+    boxes: list[_Box],
+) -> str:
+    """The az/el label beside the sun or moon: to its right by default. If
+    that would overlap the other body, its label, or a rise/set/N/E/S/W
+    label, tries the other sides and diagonals, stepping further out each
+    round; a label that had to move gets a leader line back to its body.
+    Appends the chosen box to `boxes` (so the next body's label avoids it)."""
+    label_w, label_h = _text_width(text, size), size
+    directions = ((1, 0), (-1, 0), (0, -1), (0, 1), (1, -1), (1, 1), (-1, -1), (-1, 1))
+
+    def candidate(step: int, dx: int, dy: int) -> _Box:
+        reach = radius + 4 + step * size * 1.3
+        if dx and dy:
+            reach *= 0.75
+        ax = x + dx * reach
+        ay = y + dy * (reach + label_h / 2)
+        x0 = ax if dx > 0 else ax - label_w if dx < 0 else ax - label_w / 2
+        return (x0, ay - label_h / 2, x0 + label_w, ay + label_h / 2)
+
+    chosen, moved = candidate(0, 1, 0), False
+    found = False
+    for step in range(5):
+        for dx, dy in directions:
+            box = candidate(step, dx, dy)
+            in_image = box[0] >= 0 and box[1] >= 0 and box[2] <= width and box[3] <= height
+            if in_image and not any(_overlaps(box, other) for other in obstacles + boxes):
+                chosen, moved, found = box, (step, dx, dy) != (0, 1, 0), True
+                break
+        if found:
+            break
+    boxes.append(chosen)
+
+    parts = []
+    if moved:
+        nearest_x, nearest_y = min(max(x, chosen[0]), chosen[2]), min(max(y, chosen[1]), chosen[3])
+        dist = hypot(nearest_x - x, nearest_y - y)
+        if dist > radius + 6:
+            ux, uy = (nearest_x - x) / dist, (nearest_y - y) / dist
+            x1, y1 = x + ux * (radius + 1), y + uy * (radius + 1)
+            x2, y2 = nearest_x - ux * 2, nearest_y - uy * 2
+            parts.append(
+                f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" stroke="#000" '
+                f'stroke-width="{1.5 + _OUTLINE_PX}" stroke-opacity="0.5" />'
+                f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" stroke="{color}" '
+                f'stroke-width="1.5" stroke-opacity="0.9" />'
+            )
+    parts.append(_text_el(chosen[0], (chosen[1] + chosen[3]) / 2, [text], size, color, "start", "mid"))
+    return "".join(parts)
+
+
 def _moon_disc(x: float, y: float, radius: float, fraction: float, rotation_deg: float, opacity: float, dashed: bool) -> str:
     """Moon with its phase: drawn lit-side-right (+x), then rotated so the
     lit side points `rotation_deg` (screen degrees, toward the sun)."""
@@ -536,8 +597,10 @@ def render_compass_svg(
                 parts.append(f'<path d="{full}" {faint} />')
 
     # Current sun and moon -- drawn even below the horizon (see-through,
-    # dashed outline), with their az/el beside them.
+    # dashed outline), with their az/el beside them. Labels are placed
+    # once both bodies are known, so one can dodge the other.
     sun_xy = None
+    bodies: list[tuple[float, float, float, str, str]] = []  # x, y, radius, label, colour
     if show_now:
         cur = float(current_azimuth_deg)
         elevation = float(current_elevation_deg) if current_elevation_deg is not None else 0.0
@@ -554,9 +617,7 @@ def render_compass_svg(
                 f'<circle cx="{sx:.2f}" cy="{sy:.2f}" r="{dot_r:.2f}" fill="{_CURRENT_SUN_COLOR}" '
                 f'stroke="#000" stroke-width="1.5" stroke-opacity="0.5" />'
             )
-        labels.append(
-            _text_el(sx + dot_r + 4, sy, [f"{cur:.1f}° {_signed(elevation)}°"], moon_text_size, _CURRENT_SUN_COLOR, "start", "mid")
-        )
+        bodies.append((sx, sy, dot_r, f"{cur:.1f}° {_signed(elevation)}°", _CURRENT_SUN_COLOR))
     if is_today and moon_azimuth_deg is not None and moon_elevation_deg is not None and moon_fraction is not None:
         maz, mel = float(moon_azimuth_deg), float(moon_elevation_deg)
         mx, my = _point(cx, cy, r * cos(radians(mel)), maz, north_offset_deg)
@@ -569,7 +630,15 @@ def render_compass_svg(
             rotation = 0.0 if moon_waxing else 180.0
         below = mel < 0
         parts.append(_moon_disc(mx, my, disc_r, moon_fraction, rotation, _BELOW_HORIZON_OPACITY if below else 1, below))
-        labels.append(_text_el(mx + disc_r + 4, my, [f"{maz:.1f}° {_signed(mel)}°"], moon_text_size, _MOON_LIT_COLOR, "start", "mid"))
+        bodies.append((mx, my, disc_r, f"{maz:.1f}° {_signed(mel)}°", _MOON_LIT_COLOR))
+    body_boxes: list[_Box] = [(bx - br - 2, by - br - 2, bx + br + 2, by + br + 2) for bx, by, br, _, _ in bodies]
+    for bx, by, br, text, color in bodies:
+        labels.append(
+            _place_body_label(
+                x=bx, y=by, radius=br, text=text, color=color, size=moon_text_size,
+                width=width, height=height, obstacles=boxes + body_boxes, boxes=boxes,
+            )
+        )
 
     # Top-left readout. Each line is word-wrapped to the room between the
     # image's left edge and the compass (ring + N/E/S/W labels) at that

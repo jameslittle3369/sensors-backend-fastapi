@@ -331,3 +331,24 @@ def test_clashing_rise_set_labels_get_moved_with_a_leader_line():
     clashing = _render(moonrise_azimuth_deg=Decimal("106.5"), moonset_azimuth_deg=None)
     assert clashing.count('r="2.5"') == 1
     assert "Moonrise 13:41" in clashing.replace("\u00a0", " ")
+
+
+def test_sun_and_moon_labels_dodge_each_other():
+    import re
+    from decimal import Decimal
+
+    # Sun and moon at the same bearing and almost the same height (a new
+    # moon): both az/el labels would default to the same spot.
+    svg = _render(
+        current_azimuth_deg=Decimal("170"),
+        current_elevation_deg=Decimal("40"),
+        moon_azimuth_deg=Decimal("170"),
+        moon_elevation_deg=Decimal("39"),
+        moonrise_azimuth_deg=None,
+        moonset_azimuth_deg=None,
+    )
+    sun_x, sun_y = (float(v) for v in re.search(r'<text x="([\d.]+)" y="([\d.]+)"[^>]*><tspan[^>]*>170\.0° \+40\.0°', svg).groups())
+    moon_x, moon_y = (float(v) for v in re.search(r'<text x="([\d.]+)" y="([\d.]+)"[^>]*><tspan[^>]*>170\.0° \+39\.0°', svg).groups())
+    # Not on top of each other: separated by at least a line height
+    # vertically, or by a label width horizontally.
+    assert abs(sun_y - moon_y) >= 0.08 * 265 or abs(sun_x - moon_x) > 50
