@@ -211,3 +211,123 @@ def test_sniff_image_rejects_unknown_format():
 
     with pytest.raises(UnsupportedImageError):
         sniff_image(b"not an image")
+
+
+# --- Moon: timezone handling, phase, and the overlay ---------------------
+
+
+def test_moon_position_is_the_same_for_local_and_utc_times():
+    # astral.moon reads a datetime's wall clock as UTC regardless of its
+    # tzinfo; moon_now/rise_set_azimuths must convert first, or a Chicago
+    # time is evaluated six hours early.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from app.services.almanac import moon_now
+
+    observer = Observer(latitude=29.5714, longitude=-98.8519, elevation=427)
+    local = datetime(2026, 11, 7, 10, 0, tzinfo=ZoneInfo("America/Chicago"))
+    assert moon_now(observer, local) == moon_now(observer, local.astimezone(timezone.utc))
+
+
+def test_moonrise_azimuth_is_where_the_moon_actually_is_at_moonrise():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from astral import moon as astral_moon
+
+    from app.services.almanac import compute_moon_rise_set
+
+    observer = Observer(latitude=29.5714, longitude=-98.8519, elevation=427)
+    tz = ZoneInfo("America/Chicago")
+    moonrise_at = compute_moon_rise_set(observer, date(2026, 11, 7), tz)["moonrise_at"]
+    assert moonrise_at is not None
+
+    result = rise_set_azimuths(observer, sunrise_at=None, sunset_at=None, moonrise_at=moonrise_at, moonset_at=None)
+
+    # At moonrise the moon is on the horizon -- only true when evaluated at
+    # the right instant -- and that azimuth is what gets reported.
+    utc_moonrise = moonrise_at.astimezone(timezone.utc)
+    assert abs(astral_moon.elevation(observer, utc_moonrise)) < 1
+    assert abs(float(result["moonrise_azimuth_deg"]) - astral_moon.azimuth(observer, utc_moonrise)) < 0.01
+
+
+def test_moon_illumination_and_phase_names():
+    from app.services.almanac import moon_illumination, moon_phase_name
+
+    full_fraction, _ = moon_illumination(date(2026, 11, 24))  # full moon 2026-11-24
+    new_fraction, _ = moon_illumination(date(2026, 11, 9))  # new moon 2026-11-09
+    assert full_fraction > 0.95
+    assert new_fraction < 0.05
+    _, waxing = moon_illumination(date(2026, 11, 16))
+    assert waxing
+    assert moon_phase_name(0.62, True) == "Waxing Gibbous"
+    assert moon_phase_name(0.2, False) == "Waning Crescent"
+    assert moon_phase_name(0.5, True) == "First Quarter"
+    assert moon_phase_name(0.995, False) == "Full Moon"
+
+
+def _render(**overrides):
+    from datetime import datetime
+    from decimal import Decimal
+    from zoneinfo import ZoneInfo
+
+    from app.services.almanac import render_compass_svg
+
+    tz = ZoneInfo("America/Chicago")
+    kwargs = dict(
+        image_bytes=_make_png(1120, 689),
+        day=date(2026, 11, 6),
+        is_today=True,
+        sunrise_at=datetime(2026, 11, 6, 6, 52, tzinfo=tz),
+        sunset_at=datetime(2026, 11, 6, 17, 38, tzinfo=tz),
+        sunrise_azimuth_deg=Decimal("108.5"),
+        sunset_azimuth_deg=Decimal("251.5"),
+        current_azimuth_deg=Decimal("205"),
+        current_elevation_deg=Decimal("32"),
+        radius_pct=0.385,
+        now_local=datetime(2026, 11, 6, 13, 2, 31, tzinfo=tz),
+        moonrise_at=datetime(2026, 11, 6, 13, 41, tzinfo=tz),
+        moonset_at=datetime(2026, 11, 7, 1, 52, tzinfo=tz),
+        moonrise_azimuth_deg=Decimal("92"),
+        moonset_azimuth_deg=Decimal("268"),
+        moon_azimuth_deg=Decimal("86"),
+        moon_elevation_deg=Decimal("-8"),
+        moon_fraction=0.62,
+        moon_waxing=True,
+    )
+    kwargs.update(overrides)
+    return render_compass_svg(**kwargs)
+
+
+def test_compass_svg_readout_and_moon_overlay():
+    svg = _render()
+    ElementTree.fromstring(svg)  # well-formed
+    text = svg.replace(" ", " ")
+    assert "2026-11-06 13:02:31" in text  # date + time with seconds on a "today" render
+    assert "Len 10h 46m" in text
+    assert "Waxing Gibbous 62%" in text
+    assert "Moonrise 13:41" in text and "Moonset 01:52" in text
+    assert "rotate(" in svg  # the moon disc is drawn
+    assert 'opacity="0.75"' in svg  # ...see-through, since it's below the horizon
+
+
+def test_compass_svg_not_today_shows_no_bodies_or_time():
+    svg = _render(is_today=False)
+    text = svg.replace(" ", " ")
+    assert "13:02:31" not in text
+    assert "Sun: Len 10h 46m" in text
+    assert "Moon: Waxing Gibbous 62%" in text
+    assert "rotate(" not in svg
+
+
+def test_clashing_rise_set_labels_get_moved_with_a_leader_line():
+    from decimal import Decimal
+
+    # Sun labels alone fit in their default spots -- no leader lines.
+    sun_only = _render(moonrise_azimuth_deg=None, moonset_azimuth_deg=None)
+    assert sun_only.count('r="2.5"') == 0  # leader-line dots
+    # A moonrise 2° from sunrise can't share that spot, so it moves.
+    clashing = _render(moonrise_azimuth_deg=Decimal("106.5"), moonset_azimuth_deg=None)
+    assert clashing.count('r="2.5"') == 1
+    assert "Moonrise 13:41" in clashing.replace("\u00a0", " ")

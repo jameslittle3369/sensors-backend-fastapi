@@ -11,7 +11,10 @@ from app.models.almanac import ALMANAC_METRIC_FIELDS, AlmanacDay
 from app.schemas.almanac import AlmanacDatesResponse, AlmanacDayLogRequest, AlmanacDayLogResponse
 from app.services.almanac import (
     UnsupportedImageError,
+    compute_moon_rise_set,
     compute_rise_set,
+    moon_illumination,
+    moon_now,
     observer_from_settings,
     render_compass_svg,
     rise_set_azimuths,
@@ -129,10 +132,29 @@ def compass_svg(
     if sunset_at is not None:
         sunset_at = sunset_at.astimezone(tzinfo)
 
+    # Moonrise/moonset: the stored row's API times when there are any, else
+    # astral. Azimuths are always recomputed from those times rather than
+    # read from the row -- rows logged before the astral.moon timezone fix
+    # (see services/almanac.py's _utc) hold wrong moon azimuths.
+    if row is not None and (row.moonrise_at is not None or row.moonset_at is not None):
+        moonrise_at, moonset_at = row.moonrise_at, row.moonset_at
+    else:
+        moon_rise_set = compute_moon_rise_set(observer, target_day, tzinfo)
+        moonrise_at, moonset_at = moon_rise_set["moonrise_at"], moon_rise_set["moonset_at"]
+    moon_azimuths = rise_set_azimuths(observer, sunrise_at=None, sunset_at=None, moonrise_at=moonrise_at, moonset_at=moonset_at)
+    moonrise_azimuth_deg, moonset_azimuth_deg = moon_azimuths["moonrise_azimuth_deg"], moon_azimuths["moonset_azimuth_deg"]
+    if moonrise_at is not None:
+        moonrise_at = moonrise_at.astimezone(tzinfo)
+    if moonset_at is not None:
+        moonset_at = moonset_at.astimezone(tzinfo)
+
     is_today = now.astimezone(tzinfo).date() == target_day
     current_azimuth_deg = current_elevation_deg = None
+    moon_azimuth_deg = moon_elevation_deg = None
     if is_today:
         current_azimuth_deg, current_elevation_deg = sun_now(observer, now)
+        moon_azimuth_deg, moon_elevation_deg = moon_now(observer, now)
+    moon_fraction, moon_waxing = moon_illumination(target_day)
 
     try:
         svg = render_compass_svg(
@@ -149,6 +171,15 @@ def compass_svg(
             center_x_pct=settings.compass_center_x_pct,
             center_y_pct=settings.compass_center_y_pct,
             radius_pct=settings.compass_radius_pct,
+            now_local=now.astimezone(tzinfo),
+            moonrise_at=moonrise_at,
+            moonset_at=moonset_at,
+            moonrise_azimuth_deg=moonrise_azimuth_deg,
+            moonset_azimuth_deg=moonset_azimuth_deg,
+            moon_azimuth_deg=moon_azimuth_deg,
+            moon_elevation_deg=moon_elevation_deg,
+            moon_fraction=moon_fraction,
+            moon_waxing=moon_waxing,
         )
     except UnsupportedImageError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
