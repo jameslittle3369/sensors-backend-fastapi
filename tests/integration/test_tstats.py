@@ -1,9 +1,12 @@
+import queue
+
 import pytest
 
 from sqlmodel import select
 
 from app.models.thermohygrometer import ThermoHygrometer, ThermoHygrostatLog
 from app.models.tstat import Thermometer, TstatLog
+from app.services import tstat_ingest
 
 
 def test_tstats_list_always_returns_empty_object(client):
@@ -120,3 +123,67 @@ def test_log_inserts_when_value_changes(client, session):
         select(ThermoHygrostatLog).where(ThermoHygrostatLog.thermohygrometer_id == "chan-3")
     ).all()
     assert len(logs) == 2
+
+
+# --- POST /tstats: Dyson MQTT failures -----------------------------------
+
+
+class _FakeDyson:
+    """Stands in for DysonPureHotCoolLink, whose constructor needs real
+    encrypted LocalCredentials to decrypt."""
+
+    def __init__(self, device_info):
+        self._name = device_info["Name"]
+        self._serial = "SERIAL"
+        self._credentials = "password"
+        self._product_type = "455"
+        self._connection_queue = queue.Queue()
+
+    def on_message(self, *args):
+        pass
+
+    def on_connect(self, *args):
+        pass
+
+
+@pytest.fixture
+def dyson_ingest(monkeypatch):
+    """Skips the real OWServer scrape and swaps in the fake Dyson device,
+    so only the MQTT handling under test touches the network stubs."""
+    monkeypatch.setattr(tstat_ingest, "scrape_owserver", lambda session: ["28FF001", "20.0"])
+    monkeypatch.setattr(tstat_ingest, "DysonPureHotCoolLink", _FakeDyson)
+
+
+def test_tstats_post_survives_unreachable_dyson(client, dyson_ingest, monkeypatch):
+    client_ids = []
+
+    def connect_times_out(self, host, port, *args, **kwargs):
+        client_ids.append(self._client_id)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(tstat_ingest.mqtt.Client, "connect", connect_times_out)
+
+    response = client.post("/v1/tstats")
+    assert response.status_code == 200
+    assert response.json() == ["28FF001", "20.0"]
+    # paho 2.x's empty default client id is what the Dyson won't answer.
+    assert client_ids[0].startswith(b"sensors-api-")
+
+
+def test_tstats_post_survives_dyson_never_acknowledging(client, dyson_ingest, monkeypatch):
+    class _NeverConnects(queue.Queue):
+        def get(self, block=True, timeout=None):
+            raise queue.Empty
+
+    class _SilentDyson(_FakeDyson):
+        def __init__(self, device_info):
+            super().__init__(device_info)
+            self._connection_queue = _NeverConnects()
+
+    monkeypatch.setattr(tstat_ingest, "DysonPureHotCoolLink", _SilentDyson)
+    monkeypatch.setattr(tstat_ingest.mqtt.Client, "connect", lambda self, host, port: 0)
+    monkeypatch.setattr(tstat_ingest.mqtt.Client, "loop_start", lambda self: 0)
+
+    response = client.post("/v1/tstats")
+    assert response.status_code == 200
+    assert response.json() == ["28FF001", "20.0"]
